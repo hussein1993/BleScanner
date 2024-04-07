@@ -3,9 +3,9 @@ import {
   View,
   Text,
   TextInput,
-  Button,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 
 import {useRoute} from '@react-navigation/native';
@@ -18,9 +18,9 @@ const LoginScreen = () => {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errorMessage, setErrorMessage] = useState(''); // Added for error handling
 
   const handleLogin = () => {
+    Alert.alert(`Device ${deviceName} email: ${email}`);
     navigation.goBack();
   };
 
@@ -28,7 +28,6 @@ const LoginScreen = () => {
     <View style={styles.container}>
       <Text style={styles.topText}>Device Name:</Text>
       <Text style={styles.deviceName}>{deviceName}</Text>
-      {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
       <TextInput
         style={styles.input}
         onChangeText={setEmail}
@@ -62,18 +61,22 @@ const styles = StyleSheet.create({
   topText: {
     position: 'absolute',
     top: 20,
+    borderColor: 'lightgrey',
     textAlign: 'center',
     fontWeight: 'bold',
+    color: 'gray',
+    fontSize: 16,
   },
   deviceName: {
     position: 'absolute',
     top: 50,
+    color: 'gray',
     textAlign: 'center',
     fontWeight: 'bold',
     fontSize: 20,
   },
   input: {
-    padding: 7,
+    padding: 10,
     margin: 5,
     width: '70%',
     borderWidth: 1,
@@ -81,10 +84,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
     borderColor: 'lightgrey',
-  },
-  errorText: {
-    color: 'red',
-    marginBottom: 10,
   },
   buttonContainer: {
     position: 'absolute',

@@ -2,90 +2,94 @@ import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
-  Button,
   StyleSheet,
-  Alert,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
-import PermissionsAndroid from 'react-native-permissions';
 import useBLE from './useBLE';
-import {Device} from 'react-native-ble-plx';
 
 const MainScreen = ({navigation}) => {
   const {
     requestPermissions,
     scanForDevices,
-    stopScan,
-    allDevices,
+    DetectedBeacon,
     isConnected,
     isScanning,
+    DoneScanning,
   } = useBLE();
-  const timeout = 10000;
 
-  const [filteredDevices, setFilteredDevices] = useState([]);
+  const [landingPage, setLandingPage] = useState(true);
+  const Ble_err_msg = 'Please make sure Bluetooth is on';
+  const noDeviceMsg = 'No Devices Found!';
+  const scanningTxt = 'Scanning BLE devices...';
+  const scanTxt = 'Start Scan';
+
   const startScan = async () => {
     requestPermissions(isGranted => {
-      if (isGranted) {
-        setTimeout(() => {
-          stopScan();
-        }, timeout);
+      if (isConnected && isGranted) {
         scanForDevices('Oplus-');
       }
     });
   };
-  useEffect(() => {
-    // Apply filter and update filtered devices state
-    const filterDevices = () => {
-      const filtered = allDevices.filter(
-        device => device.name && device.name.includes('GR'),
-      );
-      setFilteredDevices(filtered);
-    };
-
-    filterDevices();
-  }, [allDevices]);
 
   useEffect(() => {
-    // Navigate to login screen if filtered devices meet condition
-    if (filteredDevices.length > 0) {
-      stopScan();
-      const deviceName = filteredDevices[0].name;
+    if (DetectedBeacon.length > 0) {
+      const deviceName = DetectedBeacon[0].name;
       navigation.navigate('Login', {deviceName});
     }
-  }, [filteredDevices]);
+  }, [DetectedBeacon]);
 
   useEffect(() => {
     requestPermissions(isGranted => {});
   }, []);
+
+  useEffect(() => {
+    setTimeout(() => {
+      setLandingPage(false);
+    }, 700);
+  }, []);
+
   return (
     <View style={styles.container}>
-      {!isConnected ? (
-        <Text style={styles.text}>Please make sure Bluetooth is on</Text>
+      {landingPage ? (
+        <ActivityIndicator size="large" color="#8294C4" />
       ) : (
         <>
-          {isScanning && isConnected && (
-            <Text style={[styles.text, styles.topText]}>
-              Scanning for devices...
-            </Text>
+          {!isConnected ? (
+            <Text style={styles.text}>{Ble_err_msg}</Text>
+          ) : (
+            <View style={styles.container}>
+              {isScanning && (
+                <>
+                  <Text style={[styles.text, styles.loadingTxt]}>
+                    {scanningTxt}
+                  </Text>
+                  <ActivityIndicator size="large" color="#8294C4" />
+                </>
+              )}
+              {DoneScanning && !isScanning && (
+                <Text style={[styles.text]}>{noDeviceMsg}</Text>
+              )}
+            </View>
           )}
-          {allDevices?.map(device => (
-            <Text key={device.id} style={[styles.text, styles.devicesFound]}>
-              {device.name}
-            </Text>
-          ))}
+          {
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                onPress={startScan}
+                disabled={!isConnected}
+                style={[
+                  styles.scanButton,
+                  {
+                    opacity:
+                      !isConnected || (isConnected && isScanning) ? 0.5 : 1,
+                  },
+                ]}>
+                <Text style={styles.buttonText}>{scanTxt}</Text>
+              </TouchableOpacity>
+            </View>
+          }
         </>
       )}
-
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          onPress={isScanning ? stopScan : startScan}
-          disabled={!isConnected}
-          style={[styles.scanButton, {opacity: !isConnected ? 0.5 : 1}]}>
-          <Text style={styles.buttonText}>
-            {isScanning ? 'Stop Scan' : 'Start Scan'}
-          </Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 };
@@ -99,6 +103,8 @@ const styles = StyleSheet.create({
   },
   text: {
     fontWeight: 'bold',
+    fontSize: 20,
+    color: 'gray',
   },
   buttonContainer: {
     position: 'absolute',
@@ -110,15 +116,13 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     padding: 10,
   },
-  devicesFound: {
-    padding: 5,
-  },
   buttonText: {
     color: 'white',
     fontWeight: 'bold',
     textAlign: 'center',
+    fontSize: 16,
   },
-  topText: {
+  loadingTxt: {
     position: 'absolute',
     top: 20,
     textAlign: 'center',

@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
-import { Alert, PermissionsAndroid,Platform } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import {  PermissionsAndroid,Platform } from "react-native";
 import { BleManager, Device } from "react-native-ble-plx";
+import DeviceInfo from "react-native-device-info";
+import { PERMISSIONS, requestMultiple } from "react-native-permissions";
+
 type permissionCallback =(result:Boolean) =>void;
 
 
@@ -8,18 +11,24 @@ const bleManager = new BleManager();
 interface BluetoothLowEnergyApi{
     requestPermissions(callback: permissionCallback):Promise<void>;
     scanForDevices(filter?: string):void;
-    stopScan(): void;
-    allDevices:Device[];
+    stopScan(showScanRes:boolean): void;
+    DetectedBeacon:Device[];
     isConnected: boolean;
     isScanning: boolean;
+    DoneScanning: boolean;
 
 }
 
+
 export default function useBLE():BluetoothLowEnergyApi{
-    const [allDevices,setAllDevices] =useState<Device[]>([]);
+
+    const [DetectedBeacon,setDetectedBeacon] =useState<Device[]>([]);
     const [isConnected, setIsConnected] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
-   
+    const [DoneScanning, setDoneScanning] = useState(false);
+    
+    const timeout = 10000;
+    const startDate = useRef<number>(0);
     useEffect(() => {
         bleManager.onStateChange((state) => {
           setIsConnected(state === 'PoweredOn');
@@ -29,12 +38,14 @@ export default function useBLE():BluetoothLowEnergyApi{
         });
     
         return () => {
-          bleManager.stopDeviceScan(); // Stop scan on unmount
+          bleManager.stopDeviceScan();
         };
       }, []);
       
     const requestPermissions = async (callback: permissionCallback)=>{
         if(Platform.OS === "android"){
+            const apiLvl = await DeviceInfo.getApiLevel();
+            if(apiLvl < 31){
             const grantedStatus = await PermissionsAndroid.request(
                 PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
                 {
@@ -46,43 +57,72 @@ export default function useBLE():BluetoothLowEnergyApi{
                 }
             );
             callback(grantedStatus===PermissionsAndroid.RESULTS.GRANTED);
+            }else{
+                const result = await requestMultiple([
+                    PERMISSIONS.ANDROID.BLUETOOTH_SCAN,
+                    PERMISSIONS.ANDROID.BLUETOOTH_CONNECT,
+                    PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
+                  ]);
+                  const isGranted = result['android.permission.BLUETOOTH_CONNECT'] === PermissionsAndroid.RESULTS.GRANTED &&
+          result['android.permission.BLUETOOTH_SCAN'] ===
+            PermissionsAndroid.RESULTS.GRANTED &&
+          result['android.permission.ACCESS_FINE_LOCATION'] ===
+            PermissionsAndroid.RESULTS.GRANTED;
+
+        callback(isGranted);
+            }
         }else{
             callback(true);
         }
     };
 
-    const isDuplicateDevice = (devices: Device[],nextDevice:Device)=>
-        devices.findIndex(device => nextDevice.id ===device.id) > -1
-
     const scanForDevices=(filter?:string) =>{
+        startDate.current = Date.now();
         bleManager.startDeviceScan(null,null,(error,device)=>{
-            setIsScanning(true);
             if(error){
                 console.log(`${error}`);
-                Alert.alert("Please make sure Bluetooth is connected");
+                setTimeout(() => {
+                    stopScan(false);
+                }, 1000);
+          
             }
+            setDoneScanning(prev => {
+                return false;
+            });
+            setIsScanning(prev => {
+                return true;
+            });
+           
             if (device) {
                 if (!filter || (filter && device.name?.includes(filter))) { 
-                    
-                    setAllDevices((prevState)=>{
-                        if(!isDuplicateDevice(prevState,device)){
-                            return [...prevState,device];
-                        }
-                        return prevState
-                    });
-                  }
+                    setDetectedBeacon([device]);
+                    stopScan(false); 
                 }
-              }
-          
-        );
-    
+            }
+
+            const endTime = Date.now();
+            const timeDiff = endTime - startDate.current;
+            setIsScanning(prevIsScanning => {
+                if (prevIsScanning) {
+
+                    if (timeDiff > timeout) {
+                        stopScan(true);
+                    }
+                }
+                return prevIsScanning;
+            });
+        });
     };
     
-        const stopScan = () => {
+        const stopScan = (showScanRes:boolean) => {
+            setIsScanning(prev =>{
+                return false;
+            }); 
+            if(showScanRes){
+                setDoneScanning(true);
+            }
             bleManager.stopDeviceScan();
-            console.log("Stopppp");
-            setIsScanning(false); 
           };
 
-    return {requestPermissions,scanForDevices,stopScan,allDevices,isConnected,isScanning}
+    return {requestPermissions,scanForDevices,stopScan,DetectedBeacon,isConnected,isScanning,DoneScanning}
 }
