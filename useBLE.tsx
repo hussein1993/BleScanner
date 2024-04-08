@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {  PermissionsAndroid,Platform } from "react-native";
 import { BleManager, Device } from "react-native-ble-plx";
 import DeviceInfo from "react-native-device-info";
-import { PERMISSIONS, requestMultiple } from "react-native-permissions";
+import { PERMISSIONS, request, requestMultiple,RESULTS } from "react-native-permissions";
 
 type permissionCallback =(result:Boolean) =>void;
 
@@ -72,7 +72,11 @@ export default function useBLE():BluetoothLowEnergyApi{
         callback(isGranted);
             }
         }else{
-            callback(true);
+            request(PERMISSIONS.IOS.BLUETOOTH).then((result)=>{
+                const isGranted = (result === RESULTS.GRANTED);
+                callback(isGranted);
+            });
+            
         }
     };
 
